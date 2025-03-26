@@ -1,0 +1,74 @@
+// C++ code
+//
+#include <Adafruit_LiquidCrystal.h>
+
+const int pirPin = 3;            // PIR mozgásérzékelő (D3)
+const int relayPin = 4;          // Relé (D4)
+const int tempPin = A0;          // TMP36 hőmérséklet szenzor (A0)
+const float thresholdTemp = 25.0; // Hőmérséklet küszöb (25°C)
+unsigned long lastMovementTime = 0;
+unsigned long fanTimeout = 5000;  // 5 másodperc = 5000 ms (ventilátor kikapcsolása)(de ez gyakorlatban 1 óra lesz ami 3600000ms)
+bool fanOn = false;
+Adafruit_LiquidCrystal lcd_1(0);  // LCD deklarálása
+
+void setup() 
+{
+  pinMode(pirPin, INPUT);         // PIR mozgásérzékelő bemenet
+  pinMode(relayPin, OUTPUT);      // Relé kimenet
+  Serial.begin(9600);
+  lcd_1.begin(16, 2);			  //LCD paraméterezése
+  //lcd_1.print("Hello");			  //Az LCD először köszön
+}
+
+void loop() 
+{
+  // PIR mozgásérzékelő értékének beolvasása
+  int motionDetected = digitalRead(pirPin);
+  
+  // Hőmérséklet olvasása TMP36 szenzorból
+  int sensorValue = analogRead(tempPin); // A0-ra beolvasott érték
+  float voltage = sensorValue * (5.0 / 1023.0); // ADC érték 5V-ra konvertálva
+  float temperature = (voltage - 0.5) * 100.0; // TMP36 specifikus képlet: hőmérséklet °C-ban
+  
+  // Ha mozgás és hőmérséklet > 25°C, kapcsoljuk be a ventilátort
+  if (motionDetected == HIGH && temperature > thresholdTemp && !fanOn) 
+  {
+    digitalWrite(relayPin, HIGH);  // Ventilátor bekapcsolása
+    fanOn = true;
+    lastMovementTime = millis();  // Mentjük el a mozgás idejét
+    Serial.println("Mozgas erzekelve es homerseklet > 25°C, ventilator bekapcsolva.");
+    lcd_1.setCursor(0,1);
+    lcd_1.print("Mozgas +25C hom.");
+    
+    delay(100);
+  }
+  
+  // Ha 5 másodpercnél több idő telt el mozgás óta, kapcsoljuk ki a ventilátort
+  if (fanOn && (millis() - lastMovementTime >= fanTimeout)) {
+    digitalWrite(relayPin, LOW);  // Ventilátor kikapcsolása
+    fanOn = false;
+    Serial.println("5 masodperc eltelt, ventilator kikapcsolva.");
+    lcd_1.setCursor(0,1);
+    lcd_1.print("ventill. kikapcs");
+  }
+  
+  // Kiíratjuk a hőmérsékletet és a mozgás állapotát a soros monitorra
+  Serial.print("Aktualis homerseklet: ");
+  lcd_1.setCursor(0,0);
+  lcd_1.print("Akt hom.: ");
+  Serial.print(temperature);
+  lcd_1.print(temperature);
+  Serial.println(" °C");
+  lcd_1.print("C");
+  
+  if (motionDetected == HIGH) {
+    Serial.println("Mozgas erzekelve.");
+    lcd_1.setCursor(0,1);
+    lcd_1.print("Mozgas erzekelve.");
+  } else {
+    Serial.println("Nincs mozgas.");
+    lcd_1.print("Nincs mozgas");
+  }
+
+  delay(1000);  // 1 másodperc várakozás a következő olvasás előtt
+}
